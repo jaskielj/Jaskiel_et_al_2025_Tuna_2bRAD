@@ -1,0 +1,1472 @@
+---
+title: "Jaskiel_2025_2bRAD_Final_Workflow"
+author: "Jacob Jaskiel"
+date: "2025-07-10"
+output: html_document
+---
+#================================= Plotting ANGSD Output ========================================
+## Set Directory
+```{r}
+setwd("/Users/Jacob/Documents/2bRAD_analysis/Combined_2bRAD_analysis")
+getwd()
+```
+
+##Load Packages
+```{r}
+library(plyr)
+library(dplyr)
+library(tidyverse)
+library(vegan)
+
+```
+
+##Reading In Bam meta-data from all samples including clones (physical replicates)
+```{r}
+bamskey <- read.csv("bams_all_TR.csv", header = TRUE, stringsAsFactors = FALSE)
+head(bamskey)
+
+bams=read.csv("bams_all_TR.csv")[,1] # list of bam files
+goods=c(1:length(bams))
+#head(bams)
+#tail(bams)
+```
+
+#Dendrogram
+```{r}
+#png("angsd_TR_all_mi50.ibsmat.png", units="in", width=12, height=5, res=600)
+ma = as.matrix(read.table("angsd_TR_all_mi50.ibsmat"))
+colnames(ma)=bamskey$sample_id
+rownames(ma)=bamskey$sample_id
+hc=hclust(as.dist(ma),"ave")
+plot(hc,cex=0.2)
+#dev.off()
+```
+
+#Reading in bams (no tech. reps or low quality samples)
+```{r}
+bamskey <- read.csv("bams_all.csv", header = TRUE, stringsAsFactors = FALSE)
+head(bamskey)
+
+bams=read.csv("bams_all.csv")[,1] # list of bam files
+goods=c(1:length(bams))
+#head(bams)
+#tail(bams)
+```
+
+#Dendrogram
+```{r}
+#png("angsd_all_mid5_noLD.png", units="in", width=12, height=5, res=600)
+ma = as.matrix(read.table("angsd_all_mid5_noLD.ibsmat"))
+colnames(ma)=bamskey$sample_id
+rownames(ma)=bamskey$sample_id
+hc=hclust(as.dist(ma),"ave")
+plot(hc,cex=0.25)
+#dev.off()
+```
+
+# performing PCoA and CAP
+```{r}
+year=bamskey$year
+
+ma = as.matrix(read.table("angsd_all_mid5_noLD.ibsMat")) 
+colnames(ma)=bamskey$sample_id
+rownames(ma)=bamskey$sample_id
+
+conds=data.frame(cbind(year))
+pp0=capscale(ma~1)
+pp=capscale(ma~year,conds)
+```
+
+# significance of by-year divergence
+```{r include=FALSE}
+adidon <- adonis(ma~year,conds)
+adidon
+```
+
+# eigenvectors
+```{r}
+plot(pp0$CA$eig) 
+```
+
+# find % variance explained - eigenvector for MDS1 / sum of remaining eigenvectors
+```{r}
+eigs = as.data.frame(pp0$CA$eig)
+eigs$MDS = rownames(eigs)
+head(eigs)
+
+(eigs[1,1]/(sum(eigs$`pp0$CA$eig`)))*100 # % variance explained by MDS1
+(eigs[2,1]/(sum(eigs$`pp0$CA$eig`)))*100 # % variance explained by MDS2
+```
+
+#Plotting MDS 1 & 2
+```{r}
+#library(ggrepel)
+cmd=pp0
+axes2plot=c(1,2)  
+pca_s <- as.data.frame(cmd$CA$u[,axes2plot])
+colors=c('royalblue4','cornflowerblue','lightblue','red4','indianred3','mistyrose3', 'orange')
+
+MDS1_2 = ggplot(pca_s, aes(MDS1, MDS2)) +
+  theme_bw() +
+  geom_point(aes(colour=as.factor(conds$year), shape=as.factor(conds$year)), size=1.5, stroke = 1)  +
+  scale_color_manual(values=colors, 
+                    breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2022"),
+                    name = "Year") +
+  scale_shape_manual(values = c(15,16,17,22,21,24,25),
+                     breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2022"),
+                     name = "Year") +
+  xlab("MDS1 (80.3% variance explained)") +
+  ylab("MDS2 (1.7% variance explained)") 
+
+#tiff("pca_all_mid5_noLD.tiff", units="in", width=6, height=5, res=600)
+MDS1_2 
+#dev.off()
+```
+
+##More basic version for sample ID
+```{r}
+library(ggfortify)
+pca_res <- prcomp(pca_s, scale. = T)
+
+autoplot(pca_res, colour = conds$year, label=T, label.size=3, loadings = TRUE, loadings.colour = 'blue', loadings.label = TRUE, shape=FALSE)
+```
+
+#plotting 2 and 3
+```{r}
+library(ggrepel)
+axes2plot=c(2,3)  
+pca_s <- as.data.frame(cmd$CA$u[,axes2plot])
+colors=c('royalblue4','cornflowerblue','lightblue','red4','indianred3','mistyrose3', 'orange')
+
+MDS2_3 = ggplot(pca_s, aes(MDS2, MDS3)) +
+  theme_bw() +
+  geom_point(aes(colour=as.factor(conds$year), shape=as.factor(conds$year)), size=1.5, stroke = 1)  +
+  #stat_ellipse(type = "t",
+               #aes(color = as.factor(conds$year)), show.legend = NA, lwd = 1) + 
+  scale_color_manual(values=colors, 
+                    breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2023"),
+                    name = "Year") +
+  scale_shape_manual(values = c(15,16,17,22,21,24, 25),
+                     breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2023"),
+                     name = "Year") 
+  #geom_text(aes(label = bamskey$sample_id), hjust = 0.5,  vjust = -1)
+  
+MDS2_3
+```
+
+#plotting 3 and 4
+```{r}
+library(ggrepel)
+axes2plot=c(3,4)  
+pca_s <- as.data.frame(cmd$CA$u[,axes2plot])
+colors=c('royalblue4','cornflowerblue','lightblue','red4','indianred3','mistyrose3', 'orange')
+
+MDS3_4 = ggplot(pca_s, aes(MDS3, MDS4)) +
+  theme_bw() +
+  geom_point(aes(colour=as.factor(conds$year), shape=as.factor(conds$year)), size=1.5, stroke = 1)  +
+  #stat_ellipse(type = "t",
+               #aes(color = as.factor(conds$year)), show.legend = NA, lwd = 1) + 
+  scale_color_manual(values=colors, 
+                    breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2023"),
+                    name = "Year") +
+  scale_shape_manual(values = c(15,16,17,22,21,24,25),
+                     breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2023"),
+                     name = "Year") 
+  #geom_text(aes(label = bamskey$sample_id), hjust = 0.5,  vjust = -1)
+
+MDS3_4
+```
+
+#Reading in bams (Skipjack)
+```{r}
+bamskey <- read.csv("bams_skj.csv", header = TRUE, stringsAsFactors = FALSE)
+head(bamskey)
+
+bams=read.csv("bams_skj.csv")[,1] # list of bam files
+goods=c(1:length(bams))
+#head(bams)
+#tail(bams)
+```
+
+#Dendrogram
+```{r}
+#tiff("angsd_skj_mid5_noLD.tiff", units="in", width=6, height=5, res=600)
+ma = as.matrix(read.table("angsd_skj_mid5_noLD.ibsmat"))
+colnames(ma)=bamskey$sample_id
+rownames(ma)=bamskey$sample_id
+hc=hclust(as.dist(ma),"ave")
+plot(hc,cex=0.4)
+#dev.off()
+```
+
+# performing PCoA and CAP
+```{r}
+year=bamskey$year
+
+ma = as.matrix(read.table("angsd_skj_mid5_noLD.ibsMat")) 
+colnames(ma)=bamskey$sample_id
+rownames(ma)=bamskey$sample_id
+
+conds=data.frame(cbind(year))
+pp0=capscale(ma~1)
+pp=capscale(ma~year,conds)
+```
+
+# significance of by-year divergence
+```{r include=FALSE}
+adidon <- adonis(ma~year,conds)
+adidon
+```
+
+# eigenvectors
+```{r}
+plot(pp0$CA$eig) 
+```
+
+# find % variance explained - eigenvector for MDS1 / sum of remaining eigenvectors
+```{r}
+eigs = as.data.frame(pp0$CA$eig)
+eigs$MDS = rownames(eigs)
+head(eigs)
+
+(eigs[1,1]/(sum(eigs$`pp0$CA$eig`)))*100 # % variance explained by MDS1
+(eigs[2,1]/(sum(eigs$`pp0$CA$eig`)))*100 # % variance explained by MDS2
+```
+
+#Plotting MDS 1 & 2
+```{r}
+#library(ggrepel)
+cmd=pp0
+axes2plot=c(1,2)  
+pca_s <- as.data.frame(cmd$CA$u[,axes2plot])
+colors=c('royalblue4','cornflowerblue','lightblue','red4','indianred3','mistyrose3', 'orange')
+
+MDS1_2 = ggplot(pca_s, aes(MDS1, MDS2)) +
+  theme_bw() +
+  geom_point(aes(colour=as.factor(conds$year), shape=as.factor(conds$year)), size=1.5, stroke = 1)  +
+  scale_color_manual(values=colors, 
+                    breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2022"),
+                    name = "Year") +
+  scale_shape_manual(values = c(15,16,17,22,21,24,25),
+                     breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2022"),
+                     name = "Year") +
+  xlab("MDS1 (3.0% variance explained)") +
+  ylab("MDS2 (2.8% variance explained)") 
+
+#tiff("pca_skj_mid5_noLD.tiff", units="in", width=6, height=5, res=600)
+MDS1_2 
+#dev.off()
+```
+
+#Reading in bams (Yellowfin)
+```{r}
+bamskey <- read.csv("bams_yft.csv", header = TRUE, stringsAsFactors = FALSE)
+head(bamskey)
+
+bams=read.csv("bams_yft.csv")[,1] # list of bam files
+goods=c(1:length(bams))
+#head(bams)
+#tail(bams)
+```
+
+#Dendrogram
+```{r}
+#tiff("angsd_yft_mid5_noLD.tiff", units="in", width=6, height=5, res=600)
+ma = as.matrix(read.table("angsd_yft_mid5_noLD.ibsmat"))
+colnames(ma)=bamskey$sample_id
+rownames(ma)=bamskey$sample_id
+hc=hclust(as.dist(ma),"ave")
+plot(hc,cex=0.4)
+#dev.off()
+```
+
+# performing PCoA and CAP
+```{r}
+year=bamskey$year
+
+ma = as.matrix(read.table("angsd_yft_mid5_noLD.ibsMat")) 
+colnames(ma)=bamskey$sample_id
+rownames(ma)=bamskey$sample_id
+
+conds=data.frame(cbind(year))
+pp0=capscale(ma~1)
+pp=capscale(ma~year,conds)
+```
+
+# significance of by-year divergence
+```{r include=FALSE}
+adidon <- adonis(ma~year,conds)
+adidon
+```
+
+# eigenvectors
+```{r}
+plot(pp0$CA$eig) 
+```
+
+# find % variance explained - eigenvector for MDS1 / sum of remaining eigenvectors
+```{r}
+eigs = as.data.frame(pp0$CA$eig)
+eigs$MDS = rownames(eigs)
+head(eigs)
+
+(eigs[1,1]/(sum(eigs$`pp0$CA$eig`)))*100 # % variance explained by MDS1
+(eigs[2,1]/(sum(eigs$`pp0$CA$eig`)))*100 # % variance explained by MDS2
+```
+
+#Plotting MDS 1 & 2
+```{r}
+#library(ggrepel)
+cmd=pp0
+axes2plot=c(1,2)  
+pca_s <- as.data.frame(cmd$CA$u[,axes2plot])
+colors=c('royalblue4','cornflowerblue','lightblue','red4','indianred3','mistyrose3', 'orange')
+
+MDS1_2 = ggplot(pca_s, aes(MDS1, MDS2)) +
+  theme_bw() +
+  geom_point(aes(colour=as.factor(conds$year), shape=as.factor(conds$year)), size=1.5, stroke = 1)  +
+  scale_color_manual(values=colors, 
+                    breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2022"),
+                    name = "Year") +
+  scale_shape_manual(values = c(15,16,17,22,21,24,25),
+                     breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2022"),
+                     name = "Year") +
+  xlab("MDS1 (45.1% variance explained)") +
+  ylab("MDS2 (2.5% variance explained)") 
+
+#tiff("pca_yft_mid5_noLD.tiff", units="in", width=6, height=5, res=600)
+MDS1_2 
+#dev.off()
+```
+
+#Reading in bams (Bigeye)
+```{r}
+bamskey <- read.csv("bams_bet.csv", header = TRUE, stringsAsFactors = FALSE)
+head(bamskey)
+
+bams=read.csv("bams_bet.csv")[,1] # list of bam files
+goods=c(1:length(bams))
+#head(bams)
+#tail(bams)
+```
+
+#Dendrogram
+```{r}
+#tiff("angsd_yft_mid5_noLD.tiff", units="in", width=6, height=5, res=600)
+ma = as.matrix(read.table("angsd_bet_mid5_noLD.ibsmat"))
+colnames(ma)=bamskey$sample_id
+rownames(ma)=bamskey$sample_id
+hc=hclust(as.dist(ma),"ave")
+plot(hc,cex=0.4)
+#dev.off()
+```
+
+# performing PCoA and CAP
+```{r}
+year=bamskey$year
+
+ma = as.matrix(read.table("angsd_bet_mid5_noLD.ibsMat")) 
+colnames(ma)=bamskey$sample_id
+rownames(ma)=bamskey$sample_id
+
+conds=data.frame(cbind(year))
+pp0=capscale(ma~1)
+pp=capscale(ma~year,conds)
+```
+
+# significance of by-year divergence
+```{r include=FALSE}
+adidon <- adonis(ma~year,conds)
+adidon
+```
+
+# eigenvectors
+```{r}
+plot(pp0$CA$eig) 
+```
+
+# find % variance explained - eigenvector for MDS1 / sum of remaining eigenvectors
+```{r}
+eigs = as.data.frame(pp0$CA$eig)
+eigs$MDS = rownames(eigs)
+head(eigs)
+
+(eigs[1,1]/(sum(eigs$`pp0$CA$eig`)))*100 # % variance explained by MDS1
+(eigs[2,1]/(sum(eigs$`pp0$CA$eig`)))*100 # % variance explained by MDS2
+```
+
+#Plotting MDS 1 & 2
+```{r}
+#library(ggrepel)
+cmd=pp0
+axes2plot=c(1,2)  
+pca_s <- as.data.frame(cmd$CA$u[,axes2plot])
+colors=c('royalblue4','cornflowerblue','lightblue','red4','indianred3','mistyrose3', 'orange')
+
+MDS1_2 = ggplot(pca_s, aes(MDS1, MDS2)) +
+  theme_bw() +
+  geom_point(aes(colour=as.factor(conds$year), shape=as.factor(conds$year)), size=1.5, stroke = 1)  +
+  scale_color_manual(values=colors, 
+                    breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2022"),
+                    name = "Year") +
+  scale_shape_manual(values = c(15,16,17,22,21,24,25),
+                     breaks = c("2015", "2016", "2017", "2018", "2019", "2020", "2022"),
+                     name = "Year") +
+  xlab("MDS1 (6.8% variance explained)") +
+  ylab("MDS2 (6.3% variance explained)") 
+
+#tiff("pca_yft_mid5_noLD.tiff", units="in", width=6, height=5, res=600)
+MDS1_2 
+#dev.off()
+```
+
+#================================= NGSadmix and ADMIXTURE ========================================
+#--------------------------------- All Taxa Assuming K = 6--------------------------------
+# assembling the input table
+```{r}
+setwd("/Users/Jacob/Documents/2bRAD_analysis/Combined_2bRAD_analysis")
+dir="/Users/Jacob/Documents/2bRAD_analysis/Combined_2bRAD_analysis" # path to input files
+inName="ngsadmix_all_mid5_noLD_k6.qopt" # name of the input file to plot, output of ngsAdmix run
+pops="bams_all.txt" # 2-column tab-delimited table of individual assignments to populations; must be in the same order as samples in the bam list or vcf file.
+npops=as.numeric(sub(".+(\\d+)\\..+","\\1",inName))
+tbl=read.table("ngsadmix_all_mid5_noLD_k6.qopt")
+i2p=read.table("bams_all.txt", header = TRUE)
+i2p = i2p[,1:2]
+names(i2p)=c("ind","pop")
+tbl=cbind(tbl,i2p)
+row.names(tbl)=tbl$ind
+head(tbl)
+```
+
+# putting populations in desired order (edit pop names as needed or skip to plot them alphabetically)
+```{r}
+tbl$pop=factor(tbl$pop,levels=c("albacares","obesus","pelamis","thazard"))
+cols_lineage_k5 <- c("#003399","lightgreen", "azure3","#66FFFF","#FFDE21")
+cols_lineage_k6 <- c("azure3","#FFDE21", "lightpink","#66FFFF","#003399","lightgreen")
+```
+
+#Download below from https://github.com/z0on/2bRAD_denovo/blob/master/plot_admixture_v5_function.R
+```{r}
+source("/Users/Jacob/Documents/2bRAD_analysis/Combined_2bRAD_analysis/Admixture2024/plot_admixture_v5_function.R")
+#quartz()
+#tiff("ngsadmix_all_mid5_noLD_k6.tiff", units="in", width=12, height=5, res=600)
+ords=plotAdmixture(data=tbl,npops=npops,grouping.method="distance",vshift=0.025, colors=cols_lineage_k6)
+#dev.off()
+```
+
+#All taxa - Most Likely K using Evanno method (Evanno et al., 2005)
+```{r}
+library(dplyr)
+library(stringr)
+
+cv_data <- read.table("admixture_cv_errors_all_noLD_fold.txt", sep=":", stringsAsFactors = FALSE)
+colnames(cv_data) <- c("filename", "cv_info", "cv_error")
+
+cv_data <- cv_data %>%
+  mutate(K = as.numeric(str_extract(cv_info, "\\d+")),
+         Rep = as.numeric(str_extract(filename, "(?<=rep)\\d+")),
+         CV = as.numeric(cv_error)) %>%
+  select(K, Rep, CV)
+
+cv_summary <- cv_data %>%
+  group_by(K) %>%
+  summarise(mean_CV = mean(CV),
+            sd_CV = sd(CV),
+            .groups = "drop")
+
+#Calculate Evanno's ΔK
+cv_summary <- cv_summary %>%
+  arrange(K) %>%
+  mutate(LnL_diff = c(NA, diff(mean_CV)),
+         LnL_diff2 = c(NA, NA, abs(diff(diff(mean_CV)))),
+         DeltaK = LnL_diff2 / sd_CV)
+
+#Plot ΔK
+plot(cv_summary$K, cv_summary$DeltaK, type = "b", pch = 19,
+     xlab = "K", ylab = expression(Delta*K),
+     main = "Evanno Method - ΔK vs K")
+
+plot(cv_summary$K, cv_summary$mean_CV, type = "b", pch = 19,
+     xlab = "K", ylab = "Mean CV Error",
+     main = "Mean Cross-Validation Error per K")
+
+```
+
+#Skipjack - Most Likely K using Evanno method (Evanno et al., 2005); Repeat for each species
+```{r}
+library(dplyr)
+library(stringr)
+
+cv_data <- read.table("admixture_cv_errors_skj_noLD_fold.txt", sep=":", stringsAsFactors = FALSE)
+colnames(cv_data) <- c("filename", "cv_info", "cv_error")
+
+cv_data <- cv_data %>%
+  mutate(K = as.numeric(str_extract(cv_info, "\\d+")),
+         Rep = as.numeric(str_extract(filename, "(?<=rep)\\d+")),
+         CV = as.numeric(cv_error)) %>%
+  select(K, Rep, CV)
+
+cv_summary <- cv_data %>%
+  group_by(K) %>%
+  summarise(mean_CV = mean(CV),
+            sd_CV = sd(CV),
+            .groups = "drop")
+
+#Calculate Evanno's ΔK
+cv_summary <- cv_summary %>%
+  arrange(K) %>%
+  mutate(LnL_diff = c(NA, diff(mean_CV)),
+         LnL_diff2 = c(NA, NA, abs(diff(diff(mean_CV)))),
+         DeltaK = LnL_diff2 / sd_CV)
+
+#Plot ΔK
+plot(cv_summary$K, cv_summary$DeltaK, type = "b", pch = 19,
+     xlab = "K", ylab = expression(Delta*K),
+     main = "Evanno Method - ΔK vs K")
+
+plot(cv_summary$K, cv_summary$mean_CV, type = "b", pch = 19,
+     xlab = "K", ylab = "Mean CV Error",
+     main = "Mean Cross-Validation Error per K")
+
+```
+
+# ===================================== Stairway Plot ===================================
+#Stairway plots using output from ANGSD/RealSFS/DADI output
+#Pipeline following https://github.com/jamesfifer/JapanRE/blob/main/stairway.R
+
+```{r}
+#Stairway plots using output from ANGSD/RealSFS/DADI output
+#Pipeline following https://github.com/jamesfifer/JapanRE/blob/main/stairway.R
+
+setwd("/projectnb/mullenl/jaskiel/2bRAD_fastq/Combined_2bRAD_analysis")
+popSKJ=read.table(file="SKJ.final.summary",header=T)
+popSKJ$Species="Skipjack"
+popYFT=read.table(file="YFT.final.summary",header=T)
+popYFT$Species="Yellowfin"
+popBET=read.table(file="BET.final.summary",header=T)
+popBET$Species="Bigeye"
+
+all=rbind(popSKJ,popYFT, popBET)
+library(ggplot2)
+library(scales)
+#png("stairway_noLD.png", units="in", width=8, height=5, res=600)
+stairwayplot <- ggplot(data=all, aes(x=year, y=Ne_median, color = Species)) +geom_line(size=1.5)+
+  geom_ribbon(aes(ymin=all$Ne_12.5.,ymax=all$Ne_87.5., fill = factor(Species)), alpha = 0.3,colour = NA,show_guide = FALSE)+
+  theme_bw(base_size = 12)+ scale_y_continuous(name="Effective Population Size (Ne)", labels = comma, limits=c(0,8000000))+
+  theme(axis.text.x = element_text(size = 10), axis.text.y = element_text(size = 10)) +
+  scale_x_reverse(name="Years Before Present",limits =  c(600000,0), labels=comma)+                                                                                                                         # "300k"),limits =  c(0,3e+05))+ 
+  scale_fill_manual(values=c("#003399", "#66FFFF", "#FFDE21"))+
+  scale_color_manual(values=c("#003399", "#66FFFF", "#FFDE21"))
+stairwayplot
+#dev.off()
+```
+
+# ====================================  PW Fst  =========================================
+#All Taxa
+```{r}
+fst_data <- read.csv("PW_Fst_alltaxa.csv", header = TRUE)
+fst_data2 <- fst_data[,-1]
+fst_data2 <- sapply(fst_data2, as.numeric)
+rownames(fst_data2) <- fst_data[,1]
+
+fst_data2
+```
+## Melt Dataframe
+```{r}
+#install.packages("reshape2")
+library(reshape2)
+fst_data_melt <- melt(fst_data2, na.rm = TRUE)
+head(fst_data_melt)
+```
+
+## Make the Heatmap
+```{r}
+library(ggplot2)
+alltaxa_Fst_heatmap <- ggplot(data = fst_data_melt, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() +
+ scale_fill_gradient2(low = "white", high = "red", 
+   limit = c(0.01,0.5), space = "Lab", 
+   name="Weighted Pairwise Fst") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1), axis.text.y = element_text(vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+
+alltaxa_Fst_heatmap
+```
+
+## Formatting final product
+```{r}
+#png("PW_Fst_all.png", units="in", width=6, height=5, res=600)
+alltaxa_Fst_heatmap +
+  geom_text(aes(Var1, Var2, label = value), color = "black", size = 8) +
+theme(
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.border = element_blank(),
+  panel.background = element_blank(),
+  axis.ticks = element_blank(),
+  legend.justification = c(1.01, 0),
+  legend.position = c(0.5, 0.625),
+  legend.direction = "horizontal")+
+  guides(fill = guide_colorbar(barwidth = 8, barheight = 1,
+                title.position = "top", title.hjust = 0.5))
+#dev.off()
+```
+
+# ==================================== Skipjack PW Fst by Year =========================================
+# Here I'm only looking at weighted pairwise Fst in skipjack between groups representing different years of sampling
+#setting up data by year
+```{r}
+library(dplyr)
+bamslist_skj <- read.csv("bams_skj.csv")
+
+#2015 (17 individuals)
+bamslist_skj_2015 <- bamslist_skj %>%
+  filter(year == 2015)
+write.csv(bamslist_skj_2015, file = "bams_skj_2015.csv")
+
+#2016 (69 individuals)
+bamslist_skj_2016 <- bamslist_skj %>%
+  filter(year == 2016)
+write.csv(bamslist_skj_2016, file = "bams_skj_2016.csv")
+
+#2017 (27 individuals)
+bamslist_skj_2017 <- bamslist_skj %>%
+  filter(year == 2017)
+write.csv(bamslist_skj_2017, file = "bams_skj_2017.csv")
+
+#2018 (73 individuals)
+bamslist_skj_2018 <- bamslist_skj %>%
+  filter(year == 2018)
+write.csv(bamslist_skj_2018, file = "bams_skj_2018.csv")
+
+#2019 (16 individuals)
+bamslist_skj_2019 <- bamslist_skj %>%
+  filter(year == 2019)
+write.csv(bamslist_skj_2019, file = "bams_skj_2019.csv")
+
+#2022 (1 individual)
+bamslist_skj_2022 <- bamslist_skj %>%
+  filter(year == 2022)
+write.csv(bamslist_skj_2022, file = "bams_skj_2022.csv")
+```
+#use these for the population lists to carry out sfs work with individual year groupings, record Fst values, and continue below
+
+## Import Data
+```{r}
+PW_Fst_skj <- read.csv("PW_Fst_skj_ref_yr.csv", header = TRUE)
+PW_Fst_skj2 <- PW_Fst_skj[,-1]
+PW_Fst_skj2 <- sapply(PW_Fst_skj2, as.numeric)
+rownames(PW_Fst_skj2) <- PW_Fst_skj[,1]
+colnames(PW_Fst_skj2) <- PW_Fst_skj[,1]
+
+PW_Fst_skj2
+```
+
+## Melt Dataframe
+```{r}
+#install.packages("reshape2")
+library(reshape2)
+PW_Fst_skj_melt <- melt(PW_Fst_skj2, na.rm = TRUE)
+PW_Fst_skj_melt$Var1 <- as.factor(PW_Fst_skj_melt$Var1)
+PW_Fst_skj_melt$Var2 <- as.factor(PW_Fst_skj_melt$Var2)
+head(PW_Fst_skj_melt)
+```
+
+## Make the Heatmap
+```{r}
+library(ggplot2)
+skj_year_heatmap <- ggplot(data = PW_Fst_skj_melt, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() +
+ scale_fill_gradient2(low = "white", high = "red", 
+   limit = c(0.0024,0.051), space = "Lab", 
+   name="Weighted Pairwise Fst") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1), axis.text.y = element_text(vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+
+skj_year_heatmap
+```
+
+## Formatting final product
+```{r}
+#png(filename="PW_Fst_skj_ref.png",width=6,height=5,units="in",res=600)
+skj_year_heatmap +
+  geom_text(aes(Var1, Var2, label = value), color = "black", size = 6) +
+theme(
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.border = element_blank(),
+  panel.background = element_blank(),
+  axis.ticks = element_blank(),
+  legend.justification = c(1, 0),
+  legend.position = c(0.45, 0.65),
+  legend.direction = "horizontal")+
+  guides(fill = guide_colorbar(barwidth = 8, barheight = 1,
+                title.position = "top", title.hjust = 0.5))
+#dev.off()
+```
+
+# ==================================== Yellowfin PW Fst by Year ========================================
+# Here I'm only looking at weighted pairwise Fst in yellowfin between groups representing different years of sampling
+#setting up yearly sample groupings
+```{r}
+library(dplyr)
+
+bamslist_yft <- read.csv("bams_yft.csv")
+
+#2015 (8 individuals)
+bamslist_yft_2015 <- bamslist_yft %>%
+  filter(year == 2015)
+write.csv(bamslist_yft_2015, file = "bams_yft_2015.csv")
+
+#2016 (4 individuals)
+bamslist_yft_2016 <- bamslist_yft %>%
+  filter(year == 2016)
+write.csv(bamslist_yft_2016, file = "bams_yft_2016.csv")
+
+#2017 (5 individuals)
+bamslist_yft_2017 <- bamslist_yft %>%
+  filter(year == 2017)
+write.csv(bamslist_yft_2017, file = "bams_yft_2017.csv")
+
+#2018 (43 individuals)
+bamslist_yft_2018 <- bamslist_yft %>%
+  filter(year == 2018)
+write.csv(bamslist_yft_2018, file = "bams_yft_2018.csv")
+
+#2019 (1 individual)
+bamslist_yft_2019 <- bamslist_yft %>%
+  filter(year == 2019)
+write.csv(bamslist_yft_2019, file = "bams_yft_2019.csv")
+
+#2020 (29 individuals)
+bamslist_yft_2020 <- bamslist_yft %>%
+  filter(year == 2020)
+write.csv(bamslist_yft_2020, file = "bams_yft_2020.csv")
+
+#2022 (6 individuals)
+bamslist_yft_2022 <- bamslist_yft %>%
+  filter(year == 2022)
+write.csv(bamslist_yft_2022, file = "bams_yft_2022.csv")
+```
+#use these for the bams lists for sfs work, record Fst, and continue below
+
+## Import Data
+```{r}
+PW_Fst_yft <- read.csv("PW_Fst_yft_yr.csv", header = TRUE)
+PW_Fst_yft2 <- PW_Fst_yft[,-1]
+PW_Fst_yft2 <- sapply(PW_Fst_yft2, as.numeric)
+rownames(PW_Fst_yft2) <- PW_Fst_yft[,1]
+colnames(PW_Fst_yft2) <- PW_Fst_yft[,1]
+
+PW_Fst_yft2
+```
+
+## Melt Dataframe
+```{r}
+#install.packages("reshape2")
+library(reshape2)
+PW_Fst_yft_melt <- melt(PW_Fst_yft2, na.rm = TRUE)
+PW_Fst_yft_melt$Var1 <- as.factor(PW_Fst_yft_melt$Var1)
+PW_Fst_yft_melt$Var2 <- as.factor(PW_Fst_yft_melt$Var2)
+head(PW_Fst_yft_melt)
+```
+
+## Make the Heatmap
+```{r}
+library(ggplot2)
+yft_year_heatmap <- ggplot(data = PW_Fst_yft_melt, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() +
+ scale_fill_gradient2(low = "white", high = "red", 
+   limit = c(0.01,0.07), space = "Lab", 
+   name="Weighted Pairwise Fst") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1), axis.text.y = element_text(vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+
+yft_year_heatmap
+```
+
+## Formatting final product
+```{r}
+#png("PW_Fst_yft.png", units="in", width=6, height=5, res=600)
+yft_year_heatmap +
+  geom_text(aes(Var1, Var2, label = value), color = "black", size = 6) +
+theme(
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.border = element_blank(),
+  panel.background = element_blank(),
+  axis.ticks = element_blank(),
+  legend.justification = c(1, 0),
+  legend.position = c(0.5, 0.65),
+  legend.direction = "horizontal")+
+  guides(fill = guide_colorbar(barwidth = 8.5, barheight = 1,
+                title.position = "top", title.hjust = 0.5))
+#dev.off()
+```
+
+# ==================================== Bigeye PW Fst by Year ========================================
+# Here I'm only looking at weighted pairwise Fst in bigeye between groups representing different years of sampling
+#setting up yearly sample groupings
+```{r}
+library(dplyr)
+bamslist_bet <- read.csv("bams_bet.csv")
+
+#2015 (0 individuals)
+bamslist_bet_2015 <- bamslist_bet %>%
+  filter(year == 2015)
+
+#2016 (11 individuals)
+bamslist_bet_2016 <- bamslist_bet %>%
+  filter(year == 2016)
+write.csv(bamslist_bet_2016, file = "bams_bet_2016.csv")
+
+#2017 (2 individuals)
+bamslist_bet_2017 <- bamslist_bet %>%
+  filter(year == 2017)
+write.csv(bamslist_bet_2017, file = "bams_bet_2017.csv")
+
+#2018 (11 individuals)
+bamslist_bet_2018 <- bamslist_bet %>%
+  filter(year == 2018)
+write.csv(bamslist_bet_2018, file = "bams_bet_2018.csv")
+
+#2019 (1 individuals)
+bamslist_bet_2019 <- bamslist_bet %>%
+  filter(year == 2019)
+write.csv(bamslist_bet_2019, file = "bams_bet_2019.csv")
+
+#2020 (24 individuals)
+bamslist_bet_2020 <- bamslist_bet %>%
+  filter(year == 2020)
+write.csv(bamslist_bet_2020, file = "bams_bet_2020.csv")
+
+#2022 (8 individuals)
+bamslist_bet_2022 <- bamslist_bet %>%
+  filter(year == 2022)
+write.csv(bamslist_bet_2022, file = "bams_bet_2022.csv")
+```
+#use these to make bam lists for sfs work, record Fst, and continue below
+
+## Import Data
+```{r}
+PW_Fst_bet <- read.csv("PW_Fst_bet_yr.csv", header = TRUE)
+PW_Fst_bet2 <- PW_Fst_bet[,-1]
+PW_Fst_bet2 <- sapply(PW_Fst_bet2, as.numeric)
+rownames(PW_Fst_bet2) <- PW_Fst_bet[,1]
+colnames(PW_Fst_bet2) <- PW_Fst_bet[,1]
+
+PW_Fst_bet2
+```
+
+## Melt Dataframe
+```{r}
+#install.packages("reshape2")
+library(reshape2)
+PW_Fst_bet_melt <- melt(PW_Fst_bet2, na.rm = TRUE)
+PW_Fst_bet_melt$Var1 <- as.factor(PW_Fst_bet_melt$Var1)
+PW_Fst_bet_melt$Var2 <- as.factor(PW_Fst_bet_melt$Var2)
+head(PW_Fst_bet_melt)
+```
+
+## Make the Heatmap
+```{r}
+library(ggplot2)
+bet_year_heatmap <- ggplot(data = PW_Fst_bet_melt, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() +
+ scale_fill_gradient2(low = "white", high = "red", 
+   limit = c(0.01,0.05), space = "Lab", 
+   name="Weighted Pairwise Fst") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1), axis.text.y = element_text(vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+
+bet_year_heatmap
+```
+
+## Formatting final product
+```{r}
+#png("PW_Fst_bet.png", units="in", width=6, height=5, res=600)
+bet_year_heatmap +
+  geom_text(aes(Var1, Var2, label = value), color = "black", size = 6) +
+theme(
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.border = element_blank(),
+  panel.background = element_blank(),
+  axis.ticks = element_blank(),
+  legend.justification = c(1, 0),
+  legend.position = c(0.5, 0.65),
+  legend.direction = "horizontal")+
+  guides(fill = guide_colorbar(barwidth = 8, barheight = 1,
+                title.position = "top", title.hjust = 0.5))
+#dev.off()
+```
+
+#=============================================Heterozygosity=========================================
+#Skipjack 
+```{r}
+het_data <- read.table(file = 'angsd_het_skj_noLD.beagle.gz', header=TRUE)[,-c(1:3)]
+het_data <- array(c(t(as.matrix(het_data))), c(3, ncol(het_data)/3, nrow(het_data)))
+EMstep <- function (sfs, GL) rowMeans(prop.table(sfs * GL, 2))
+
+SFS <- matrix(1/3,3,dim(het_data)[2])
+
+maxiter <- 200
+tol <- 1e-8
+```
+
+```{r}
+for(sample in 1:dim(het_data)[2])
+{
+  for (iter in 1:maxiter)
+  {
+    upd <- EMstep (SFS[,sample], het_data[,sample,])
+     if (sqrt(sum((upd - SFS[,sample])^2)) < tol)
+      break;
+    SFS[,sample] <- upd
+  }
+  message(sample," ",round(SFS[2,sample],4))
+  if (iter == maxiter) warning("increase maximum number of iterations")
+}
+
+write.csv(SFS[2,], file = "skj_noLD_He.csv")
+```
+
+#Violin Plot of Heterozygosity
+```{r}
+library(ggplot2)
+library(dplyr)
+
+skj_noLD_het <- read.csv("skj_noLD_He.csv", header = TRUE)
+skj_noLD_het$year <- as.character(skj_noLD_het$year)
+skj_noLD_het_filtered <- skj_noLD_het %>%
+  filter(year != 2020 & year !=2022)
+
+colors=c('royalblue4','cornflowerblue','lightblue','red4','indianred3')        
+
+data_summary <- function(x) {
+  m <- mean(x)
+  ymin <- m-sd(x)
+  ymax <- m+sd(x)
+  return(c(y=m,ymin=ymin,ymax=ymax))
+}
+p <- ggplot(skj_noLD_het_filtered, aes(x=year, y=Heterozygosity,fill=year)) + 
+  geom_violin()+
+  scale_fill_manual(values=colors)+
+  theme_bw(base_size = 22)+
+  ylab(label = "Expected Het")+xlab(label="")+
+  theme(axis.text.x = element_text(angle = 45, vjust = , hjust=1))+
+  coord_cartesian(ylim = c(0.0015, 0.00425)) 
+#tiff("skj_het_noLD.tiff", units="in", width=6, height=5, res=600)
+p+stat_summary(fun=mean,size=2, 
+               geom="point", color="black")
+#dev.off()
+```
+
+#T-test
+```{r}
+skj_noLD_het_2015 <- skj_noLD_het_filtered %>%
+  filter(year == 2015)
+
+skj_noLD_het_2016 <- skj_noLD_het_filtered %>%
+  filter(year == 2016)
+
+skj_noLD_het_2017 <- skj_noLD_het_filtered %>%
+  filter(year == 2017)
+
+skj_noLD_het_2018 <- skj_noLD_het_filtered %>%
+  filter(year == 2018)
+
+skj_noLD_het_2019 <- skj_noLD_het_filtered %>%
+  filter(year == 2019)
+
+#2015 & 2016: 
+t.test(skj_noLD_het_2015$Heterozygosity,skj_noLD_het_2016$Heterozygosity)
+#t = 0.25536, df = 33.327, p-value = 0.8
+
+#2015 & 2017: 
+t.test(skj_noLD_het_2015$Heterozygosity,skj_noLD_het_2017$Heterozygosity)
+#t = 0.82795, df = 40.284, p-value = 0.4126
+
+#2015 & 2018: 
+t.test(skj_noLD_het_2015$Heterozygosity,skj_noLD_het_2018$Heterozygosity)
+#t = -0.02547, df = 27.368, p-value = 0.9799
+
+#2015 & 2019: 
+t.test(skj_noLD_het_2015$Heterozygosity,skj_noLD_het_2019$Heterozygosity)
+#t = -2.4763, df = 30.534, p-value = 0.01903*
+
+#2016 & 2017: 
+t.test(skj_noLD_het_2016$Heterozygosity,skj_noLD_het_2017$Heterozygosity)
+#t = 0.70662, df = 50.587, p-value = 0.483
+
+#2016 & 2018: 
+t.test(skj_noLD_het_2016$Heterozygosity,skj_noLD_het_2018$Heterozygosity)
+#t = -0.37913, df = 133.17, p-value = 0.7052
+
+#2016 & 2019: 
+t.test(skj_noLD_het_2016$Heterozygosity,skj_noLD_het_2019$Heterozygosity)
+#t = -3.0714, df = 28.456, p-value = 0.004654**
+
+#2017 & 2018: 
+t.test(skj_noLD_het_2017$Heterozygosity,skj_noLD_het_2018$Heterozygosity)
+#t = -1.0331, df = 42.529, p-value = 0.3074
+
+#2017 & 2019: 
+t.test(skj_noLD_het_2017$Heterozygosity,skj_noLD_het_2019$Heterozygosity)
+#t = -3.2241, df = 36.88, p-value = 0.002646**
+
+#2018 & 2019: 
+t.test(skj_noLD_het_2018$Heterozygosity,skj_noLD_het_2019$Heterozygosity)
+#t = -2.9524, df = 23.796, p-value = 0.006986
+
+#2015: A
+#2016: A
+#2017: A
+#2018: A
+#2019: B
+```
+
+
+#Heterozygosity - Yellowfin
+```{r}
+het_data <- read.table(file = 'angsd_het_yft_noLD.beagle.gz', header=TRUE)[,-c(1:3)]
+het_data <- array(c(t(as.matrix(het_data))), c(3, ncol(het_data)/3, nrow(het_data)))
+EMstep <- function (sfs, GL) rowMeans(prop.table(sfs * GL, 2))
+
+SFS <- matrix(1/3,3,dim(het_data)[2])
+
+maxiter <- 200
+tol <- 1e-8
+```
+
+
+```{r}
+for(sample in 1:dim(het_data)[2])
+{
+  for (iter in 1:maxiter)
+  {
+    upd <- EMstep (SFS[,sample], het_data[,sample,])
+     if (sqrt(sum((upd - SFS[,sample])^2)) < tol)
+      break;
+    SFS[,sample] <- upd
+  }
+  message(sample," ",round(SFS[2,sample],4))
+  if (iter == maxiter) warning("increase maximum number of iterations")
+}
+#print(c((het_data),round(summary(SFS[2,]),3)),quote=F)
+#save(SFS,file=paste(het_data,"skj_heterozygosity.RData",sep="")) # SFS[2,] is estimated heterozygosity per individual
+#save.image(file = "skj_denovo.RData")
+write.csv(SFS[2,], file = "yft_He_noLD.csv")
+```
+
+#Violin Plot of Heterozygosity
+```{r}
+library(ggplot2)
+library(dplyr)
+
+yft_het <- read.csv("yft_He_noLD.csv", header = TRUE)
+yft_het$year <- as.character(yft_het$year)
+yft_het_filtered <- yft_het %>%
+  filter(year != 2019)
+
+colors=c('royalblue4','cornflowerblue','lightblue','red4','mistyrose3', 'orange')
+
+data_summary <- function(x) {
+  m <- mean(x)
+  ymin <- m-sd(x)
+  ymax <- m+sd(x)
+  return(c(y=m,ymin=ymin,ymax=ymax))
+}
+p <- ggplot(yft_het_filtered, aes(x=year, y=expected_heterozygosity,fill=year)) + 
+  geom_violin()+
+  scale_fill_manual(values=colors)+
+  theme_bw(base_size = 22)+
+  ylab(label = "Expected Het")+xlab(label="")+
+  theme(axis.text.x = element_text(angle = 45, vjust = , hjust=1))+
+  coord_cartesian(ylim = c(0.0019, 0.006)) 
+tiff("yft_het_noLD.tiff", units="in", width=6, height=5, res=600)
+p+stat_summary(fun=mean,size=2, 
+               geom="point", color="black")
+dev.off()
+```
+
+#T-test
+```{r}
+yft_het_2015 <- yft_het_filtered %>%
+  filter(year == 2015)
+
+yft_het_2016 <- yft_het_filtered %>%
+  filter(year == 2016)
+
+yft_het_2017 <- yft_het_filtered %>%
+  filter(year == 2017)
+
+yft_het_2018 <- yft_het_filtered %>%
+  filter(year == 2018)
+
+yft_het_2020 <- yft_het_filtered %>%
+  filter(year == 2020)
+
+yft_het_2022 <- yft_het_filtered %>%
+  filter(year == 2022)
+
+#2015 & 2016: 
+t.test(yft_het_2015$expected_heterozygosity,yft_het_2016$expected_heterozygosity)
+#t = 2.2381, df = 6.1803, p-value = 0.06523
+
+#2015 & 2017: 
+t.test(yft_het_2015$expected_heterozygosity,yft_het_2017$expected_heterozygosity)
+#t = -2.4374, df = 9.1095, p-value = 0.03722*
+
+#2015 & 2018: 
+t.test(yft_het_2015$expected_heterozygosity,yft_het_2018$expected_heterozygosity)
+#t = 0.69774, df = 11.424, p-value = 0.4993
+
+#2015 & 2020: 
+t.test(yft_het_2015$expected_heterozygosity,yft_het_2020$expected_heterozygosity)
+#t = 1.3081, df = 12.113, p-value = 0.2151
+
+#2015 & 2022: 
+t.test(yft_het_2015$expected_heterozygosity,yft_het_2022$expected_heterozygosity)
+#t = 4.1054, df = 10.53, p-value = 0.001909**
+
+#2016 & 2017: 
+t.test(yft_het_2016$expected_heterozygosity,yft_het_2017$expected_heterozygosity)
+#t = -4.1656, df = 6.3874, p-value = 0.005151*
+
+#2016 & 2018: 
+t.test(yft_het_2016$expected_heterozygosity,yft_het_2018$expected_heterozygosity)
+#t = -2.0416, df = 3.9425, p-value = 0.1118
+
+#2016 & 2020: 
+t.test(yft_het_2016$expected_heterozygosity,yft_het_2020$expected_heterozygosity)
+#t = -1.5436, df = 4.1055, p-value = 0.1958
+
+#2016 & 2022: 
+t.test(yft_het_2016$expected_heterozygosity,yft_het_2022$expected_heterozygosity)
+#t = 0.56462, df = 3.9505, p-value = 0.6029
+
+#2017 & 2018: 
+t.test(yft_het_2017$expected_heterozygosity,yft_het_2018$expected_heterozygosity)
+#t = 3.5186, df = 5.7839, p-value = 0.01332*
+
+#2017 & 2020: 
+t.test(yft_het_2017$expected_heterozygosity,yft_het_2020$expected_heterozygosity)
+#t = 4.0169, df = 6.0894, p-value = 0.006774*
+
+#2017 & 2022: 
+t.test(yft_het_2017$expected_heterozygosity,yft_het_2022$expected_heterozygosity)
+#t = 6.4887, df = 5.7082, p-value = 0.0007772**
+
+#2018 & 2020: 
+t.test(yft_het_2018$expected_heterozygosity,yft_het_2020$expected_heterozygosity)
+#t = 0.91366, df = 64.834, p-value = 0.3643
+
+#2018 & 2022: 
+t.test(yft_het_2018$expected_heterozygosity,yft_het_2022$expected_heterozygosity)
+#t = 5.0744, df = 17.094, p-value = 9.226e-05***
+
+#2020 & 2022: 
+t.test(yft_het_2020$expected_heterozygosity,yft_het_2022$expected_heterozygosity)
+#t = 3.98, df = 18.149, p-value = 0.0008659**
+
+#2015: A
+#2016: AC
+#2017: B
+#2018: A
+#2020: A
+#2022: C
+```
+
+#Heterozygosity - Bigeye
+```{r}
+het_data <- read.table(file = 'angsd_het_bet_noLD.beagle.gz', header=TRUE)[,-c(1:3)]
+het_data <- array(c(t(as.matrix(het_data))), c(3, ncol(het_data)/3, nrow(het_data)))
+EMstep <- function (sfs, GL) rowMeans(prop.table(sfs * GL, 2))
+
+SFS <- matrix(1/3,3,dim(het_data)[2])
+
+maxiter <- 200
+tol <- 1e-8
+```
+
+
+```{r}
+for(sample in 1:dim(het_data)[2])
+{
+  for (iter in 1:maxiter)
+  {
+    upd <- EMstep (SFS[,sample], het_data[,sample,])
+     if (sqrt(sum((upd - SFS[,sample])^2)) < tol)
+      break;
+    SFS[,sample] <- upd
+  }
+  message(sample," ",round(SFS[2,sample],4))
+  if (iter == maxiter) warning("increase maximum number of iterations")
+}
+#print(c((het_data),round(summary(SFS[2,]),3)),quote=F)
+#save(SFS,file=paste(het_data,"skj_heterozygosity.RData",sep="")) # SFS[2,] is estimated heterozygosity per individual
+#save.image(file = "skj_denovo.RData")
+write.csv(SFS[2,], file = "bet_He_noLD.csv")
+```
+#add metadata from bam file, reupload to SCC, then continue on
+
+#Violin Plot of Heterozygosity
+```{r}
+library(ggplot2)
+library(dplyr)
+
+bet_het <- read.csv("bet_He_noLD.csv", header = TRUE)
+bet_het$year <- as.character(bet_het$year)
+bet_het_filtered <- bet_het %>%
+  filter(year != 2019 & year != 2017)
+
+colors=c('cornflowerblue','red4','mistyrose3', 'orange')
+
+data_summary <- function(x) {
+  m <- mean(x)
+  ymin <- m-sd(x)
+  ymax <- m+sd(x)
+  return(c(y=m,ymin=ymin,ymax=ymax))
+}
+p <- ggplot(bet_het_filtered, aes(x=year, y=expected_heterozygosity,fill=year)) + 
+  geom_violin()+
+  scale_fill_manual(values=colors)+
+  theme_bw(base_size = 22)+
+  ylab(label = "Expected Het")+xlab(label="")+
+  theme(axis.text.x = element_text(angle = 45, vjust = , hjust=1))+
+  coord_cartesian(ylim = c(0.0013, 0.0048)) 
+#tiff("bet_het_noLD.tiff", units="in", width=6, height=5, res=600)
+p+stat_summary(fun=mean,size=2, 
+               geom="point", color="black")
+#dev.off()
+```
+
+#T-test
+```{r}
+bet_het_2016 <- bet_het_filtered %>%
+  filter(year == 2016)
+
+bet_het_2018 <- bet_het_filtered %>%
+  filter(year == 2018)
+
+bet_het_2019 <- bet_het_filtered %>%
+  filter(year == 2019)
+
+bet_het_2020 <- bet_het_filtered %>%
+  filter(year == 2020)
+
+bet_het_2022 <- bet_het_filtered %>%
+  filter(year == 2022)
+
+
+#2016 & 2018: 
+t.test(bet_het_2016$expected_heterozygosity,bet_het_2018$expected_heterozygosity)
+#t = 2.1086, df = 15.694, p-value = 0.05142
+
+#2016 & 2020: 
+t.test(bet_het_2016$expected_heterozygosity,bet_het_2020$expected_heterozygosity)
+#t = 0.64385, df = 16.363, p-value = 0.5286
+
+#2016 & 2022: 
+t.test(bet_het_2016$expected_heterozygosity,bet_het_2022$expected_heterozygosity)
+#t = 3.285, df = 14.026, p-value = 0.005411*
+
+#2018 & 2020: 
+t.test(bet_het_2018$expected_heterozygosity,bet_het_2020$expected_heterozygosity)
+#t = -2.1387, df = 27.602, p-value = 0.04145*
+
+#2018 & 2022: 
+t.test(bet_het_2018$expected_heterozygosity,bet_het_2022$expected_heterozygosity)
+#t = 1.6652, df = 16.994, p-value = 0.1142
+
+#2020 & 2022: 
+t.test(bet_het_2020$expected_heterozygosity,bet_het_2022$expected_heterozygosity)
+#t = 3.9811, df = 24.796, p-value = 0.0005264**
+
+#2016: A
+#2018: B
+#2020: A
+#2022: B
+```
+
+##============================================Tajima's D Plotting============================================
+#Skipjack
+```{r}
+#Skipjack, chromosome level
+skj_tajD_chrom <- read.table("skj_theta_noLD_fold.thetas.idx.pestPG", header = FALSE)
+headers <- c("indexStart, indexStop; firstPos_withData, lastPos_withData; 
+             WinStart, WinStop", "Chr", "WinCenter", "tW", "tP", "tF", "tH", 
+             "tL", "Tajima", "fuf", "fud", "fayh", "zeng", "nSites")
+
+#Assign headers to the data frame
+colnames(skj_tajD_chrom) <- headers
+
+#Write to CSV
+write.csv(skj_tajD_chrom, "skj_theta_noLD_fold_tajD_chrom.csv", row.names = FALSE)
+
+#Load ggplot2
+library(ggplot2)
+
+#Plot Tajima's D across all chromosomes
+ggplot(skj_tajD_chrom, aes(x = Chr, y = Tajima)) +
+  geom_point(alpha = 0.6) +                  
+  theme_minimal() +                           
+  labs(x = "Chromosome", y = "Tajima's D") +  
+  theme(axis.text.x = element_text(angle = 70, hjust = 1))+  
+  ylim(-3, 3) 
+```
+
+#Better chromosome version
+```{r}
+#Load ggplot2
+library(ggplot2)
+skj_tajD_chrom$Chr <- factor(skj_tajD_chrom$Chr)
+levels(skj_tajD_chrom$Chr) <- as.character(1:24)
+#Plot Tajima's D by chromosome using points
+p <- ggplot(skj_tajD_chrom, aes(x = Chr, y = Tajima)) +
+  geom_point(alpha = 0.6, color = "black", size = 1.5) +
+  theme_minimal(base_family = "serif") +
+  labs(
+    x = "Chromosome", 
+    y = "Tajima's D"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 0),
+    panel.grid.major.x = element_blank(),
+    axis.title = element_text(size = 12)
+  ) +
+  ylim(-3, 3)
+
+#Save plot
+#png(filename="skj_noLD_fold_tajD_chrom.png", width=6, height=5, units="in",res=600)
+print(p)
+#dev.off()
+```
+
+#Yellowfin
+```{r}
+#Yellowfin, chromosome level
+yft_tajD_chrom <- read.table("yft_theta_noLD_fold.thetas.idx.pestPG", header = FALSE)
+headers <- c("indexStart, indexStop; firstPos_withData, lastPos_withData; 
+             WinStart, WinStop", "Chr", "WinCenter", "tW", "tP", "tF", "tH", 
+             "tL", "Tajima", "fuf", "fud", "fayh", "zeng", "nSites")
+
+# Assign headers to the data frame
+colnames(yft_tajD_chrom) <- headers
+
+# Write to CSV
+write.csv(yft_tajD_chrom, "yft_noLD_tajD_fold_chrom.csv", row.names = FALSE)
+
+# Load ggplot2
+library(ggplot2)
+
+# Plot Tajima's D across chromosomes
+ggplot(yft_tajD_chrom, aes(x = Chr, y = Tajima)) +
+  geom_point(alpha = 0.6) +                   
+  theme_minimal() +                           
+  labs(x = "Chromosome", y = "Tajima's D") +  
+  theme(axis.text.x = element_text(angle = 70, hjust = 1))+ 
+  ylim(-3, 3) 
+```
+
+#Better Chromosome version
+```{r}
+#Load ggplot2
+library(ggplot2)
+yft_tajD_chrom$Chr <- factor(yft_tajD_chrom$Chr)
+levels(yft_tajD_chrom$Chr) <- as.character(1:24)
+#Plot Tajima's D by chromosome using points
+p <- ggplot(yft_tajD_chrom, aes(x = Chr, y = Tajima)) +
+  geom_point(alpha = 0.6, color = "black", size = 1.5) +
+  theme_minimal(base_family = "serif") +
+  labs(
+    x = "Chromosome", 
+    y = "Tajima's D"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 0),
+    panel.grid.major.x = element_blank(),
+    axis.title = element_text(size = 12)
+  ) +
+  ylim(-3, 3)
+
+#Save plot
+#png(filename="yft_noLD_fold_tajD_chrom.png", width=6, height=5, units="in",res=600)
+print(p)
+#dev.off()
+```
+
+#Bigeye
+```{r}
+#Bigeye, chromosome level
+bet_tajD_chrom <- read.table("bet_theta_noLD_fold.thetas.idx.pestPG", header = FALSE)
+headers <- c("indexStart, indexStop; firstPos_withData, lastPos_withData; 
+             WinStart, WinStop", "Chr", "WinCenter", "tW", "tP", "tF", "tH", 
+             "tL", "Tajima", "fuf", "fud", "fayh", "zeng", "nSites")
+
+#Assign headers to the data frame
+colnames(bet_tajD_chrom) <- headers
+
+#Write to CSV
+write.csv(bet_tajD_chrom, "bet_noLD_fold_chrom.csv", row.names = FALSE)
+
+#Load ggplot2
+library(ggplot2)
+
+#Plot Tajima's D across chromosomes
+ggplot(bet_tajD_chrom, aes(x = Chr, y = Tajima)) +
+  geom_point(alpha = 0.6) +                   
+  theme_minimal() +                           
+  labs(x = "Chromosome", y = "Tajima's D") +  
+  theme(axis.text.x = element_text(angle = 70, hjust = 1))+  
+  ylim(-3, 3) 
+```
+
+#Better Chromosome version
+```{r}
+#Load ggplot2
+library(ggplot2)
+bet_tajD_chrom$Chr <- factor(bet_tajD_chrom$Chr)
+levels(bet_tajD_chrom$Chr) <- as.character(1:24)
+#Plot Tajima's D by chromosome using points
+p <- ggplot(bet_tajD_chrom, aes(x = Chr, y = Tajima)) +
+  geom_point(alpha = 0.6, color = "black", size = 1.5) +
+  theme_minimal(base_family = "serif") +
+  labs(
+    x = "Chromosome", 
+    y = "Tajima's D"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 0),
+    panel.grid.major.x = element_blank(),
+    axis.title = element_text(size = 12)
+  ) +
+  ylim(-3, 3)
+
+#Save plot
+#png(filename="bet_noLD_fold_tajD_chrom.png", width=6, height=5, units="in",res=600)
+print(p)
+#dev.off()
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
